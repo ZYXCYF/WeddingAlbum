@@ -55,7 +55,7 @@
 <body>
   <header>
     <div class="container">
-      <h1>陳郁芳與鄭宇翔的婚紗相簿</h1>
+      <h1>我們的婚紗相簿</h1>
       <p class="sub">相簿會自動讀取 <code>WeddingPhoto/</code> 內的圖片並美觀排列。點擊可全螢幕瀏覽。</p>
     </div>
   </header>
@@ -84,10 +84,10 @@
 
   <script>
   // === 可自訂：把下面四個常數改成你的 GitHub 設定 ===
-  const GH_USER   = "ZYXCFF";      // 例如： zhengyx
-  const GH_REPO   = "WeddingAlbum";     // 例如： username.github.io 或 weddingalbum
-  const GH_BRANCH = "main";           // 例如 main 或 gh-pages
-  const FOLDER    = "WeddingPhoto";   // 你的相片資料夾
+  const GH_USER   = "ZYXCYF";
+  const GH_REPO   = "WeddingAlbum";
+  const GH_BRANCH = "main";
+  const FOLDER    = "WeddingPhoto";
 
   // 若此頁在 GitHub Pages 網域上，可嘗試自動抓取 USER/REPO
   try{
@@ -110,7 +110,7 @@
   const repo   = window.GH_REPO_AUTO || GH_REPO;
   const branch = GH_BRANCH;
 
-  const API = `https://api.github.com/repos/${user}/${repo}/contents/${encodeURIComponent(FOLDER)}?ref=${encodeURIComponent(branch)}`;
+  let API = `https://api.github.com/repos/${user}/${repo}/contents/${encodeURIComponent(FOLDER)}?ref=${encodeURIComponent(branch)}`;
 
   const grid   = document.getElementById('grid');
   const notice = document.getElementById('notice');
@@ -189,7 +189,12 @@
 
   async function load(){
     try{
-      const r = await fetch(API, {headers:{'Accept':'application/vnd.github+json'}});
+      let r = await fetch(API, {headers:{'Accept':'application/vnd.github+json'}});
+      if(r.status===404 && branch==='main'){
+        // fallback: 有些 repo 預設分支是 master
+        API = API.replace(/ref=main/, 'ref=master');
+        r = await fetch(API, {headers:{'Accept':'application/vnd.github+json'}});
+      }
       if(!r.ok){
         const t = await r.text();
         throw new Error(`GitHub API ${r.status}: ${t}`);
@@ -203,7 +208,7 @@
       notice.classList.add('hidden');
       files.sort((a,b)=> a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}));
       for(const f of files){
-        const url = f.download_url; // 原始檔案 URL（含必要編碼）
+        const url = f.download_url;
         photos.push({url, name:f.name});
         grid.appendChild(makeCard({url, name:f.name}));
       }
