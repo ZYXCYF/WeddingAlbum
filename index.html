@@ -51,8 +51,8 @@
 
     .hidden{display:none!important}
     .error{color:#b00020; background:#fff; border-left:4px solid #b00020; padding:12px 14px; border-radius:8px}
-    
-    /* === Floating Heart Button === */
+
+    /* === 右下角漂浮愛心 === */
     .fab-heart{
       position: fixed; right: 16px; bottom: 16px;
       width: 66px; height: 66px;
@@ -83,7 +83,6 @@
     @media (max-width:420px){
       .fab-heart{ right: 12px; bottom: 12px; width: 60px; height: 60px; }
     }
-  
   </style>
 </head>
 <body>
@@ -104,6 +103,15 @@
     <small class="muted">Captured with Love in Taiwan</small>
   </footer>
 
+  <!-- 漂浮愛心（先放在 DOM，等等 JS 才綁事件） -->
+  <button id="fab-like" class="fab-heart" aria-label="按愛心">
+    <svg viewBox="0 0 24 24" fill="#E57373" aria-hidden="true">
+      <path d="M12 21s-6.716-4.324-9.38-7.02C.8 12.14.5 9.36 2.11 7.7c1.78-1.84 4.82-1.62 6.59.23L12 11l3.3-3.07c1.77-1.85 4.81-2.07 6.59-.23 1.61 1.66 1.31 4.44-.51 6.28C18.72 16.68 12 21 12 21z"/>
+    </svg>
+    <span id="fab-like-count" class="count">0</span>
+  </button>
+
+  <!-- 相簿主程式（不含任何按讚邏輯） -->
   <dialog id="lightbox" aria-label="照片檢視">
     <div class="lb-wrap">
       <img id="lb-img" class="lb-img" alt="" />
@@ -171,63 +179,12 @@
     img.src = thumb;
     box.appendChild(img);
 
-    // === 愛心（全站共享） ===
-    const id = stem(name);                   // 以「檔名去副檔名」當唯一 id
-    const key = 'liked:' + id;               // 本機防重複（每裝置僅一次）
-    const liked = localStorage.getItem(key) === '1';
-    const countNow = Number(likeCounts[id] || 0);
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'heart' + (liked ? ' active' : '');
-    btn.innerHTML = `<span class="icon">❤</span><span class="txt">${liked ? 'Liked' : 'Like'}</span><span class="count">${countNow}</span>`;
-
-    btn.addEventListener('click', async (ev) => {
-      ev.stopPropagation(); ev.preventDefault();
-      if (btn.classList.contains('active')) return; // 防多次點擊
-      btn.disabled = true;
-
-      const countEl = btn.querySelector('.count');
-      const current = parseInt(countEl.textContent, 10) || 0;
-
-      // 樂觀更新
-      countEl.textContent = String(current + 1);
-      btn.classList.add('active');
-      btn.querySelector('.txt').textContent = 'Liked';
-      localStorage.setItem(key, '1');
-
-      try {
-        // ---- 傳送到 GAS ----
-        if (LIKE_METHOD === 'POST') {
-          const res = await fetch(LIKE_API, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id }),
-          });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-        } else {
-          const res = await fetch(`${LIKE_API}?action=inc&id=${encodeURIComponent(id)}`);
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-        }
-
-      } catch (e) {
-        console.warn('送讚失敗：', e);
-        // ❗不回滾「Liked」字樣，只在 console 提示
-        // 讓使用者體驗上維持成功狀態，但不破壞外觀
-      } finally {
-        btn.disabled = false;
-      }
-    });
-    box.appendChild(btn);
-    // ========================
-
     a.appendChild(box);
     a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(full); });
 
     fig.appendChild(a);
     return fig;
   }
-
 
   // Lightbox
   const lb = document.getElementById('lightbox');
@@ -276,12 +233,12 @@
     return r.json();
   }
 
-  // 分批渲染，避免一次插入過多節點造成首屏卡頓
+  // 分批渲染
   function batchedRender(items, renderOne, batchSize = 15){
     let i = 0;
     const schedule = (typeof window.requestIdleCallback === 'function')
-      ? (cb) => window.requestIdleCallback(cb)    // 只傳 callback
-      : (cb) => setTimeout(cb, 0);                // 後援用 setTimeout
+      ? (cb) => window.requestIdleCallback(cb)
+      : (cb) => setTimeout(cb, 0);
 
     function more(){
       const end = Math.min(i + batchSize, items.length);
@@ -298,22 +255,12 @@
         listFolder(`${FOLDER}/${THUMBS}`).catch(()=>[]),
       ]);
 
-        // 讀所有讚數（物件：{ id: likes, ... }）
-      try {
-        const res = await fetch(LIKE_API);
-        Object.assign(likeCounts, await res.json());
-      } catch (e) {
-        console.warn('讀讚數失敗（先以 0 顯示）', e);
-      }
-
-      // 1) 縮圖對映（用「去副檔名」比對，處理 .jpg -> .webp 的情況）
       const thumbMap = new Map(
         (Array.isArray(thumbs)?thumbs:[])
           .filter(it => it.type === 'file')
           .map(it => [ stem(it.name), it.download_url ])
       );
 
-      // 2) 原圖清單
       const imgs = files.filter(it => it.type==='file' && ALLOWED.has(fileExt(it.name)));
       if(!imgs.length){
         notice.textContent = `資料夾沒有圖片；請放 .jpg/.png/.webp 等檔案到 ${FOLDER}/`;
@@ -321,18 +268,15 @@
       }
       notice.classList.add('hidden');
 
-      // 3) 排序
       imgs.sort((a,b)=> a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}));
 
-      // 4) 分批渲染
       batchedRender(imgs, (f, i)=>{
         const full  = f.download_url;
-        const th    = thumbMap.get(stem(f.name)) || full;  // 有縮圖就用縮圖，否則退回原圖
+        const th    = thumbMap.get(stem(f.name)) || full;
         photos.push({ url: full, name: f.name });
         grid.appendChild(makeCard({ thumb: th, full, name: f.name }, i));
       });
 
-      // 5) 滑過卡片時預取原圖（局部加速）
       grid.addEventListener('mouseover', (e)=>{
         const a = e.target.closest('a');
         if(!a) return;
@@ -349,9 +293,12 @@
     }
   }
   load();
+  </script>
 
-
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbyBSlGxC4NA7FxFar67iECcLuc5liqW63YJ8YbDH7u9qDCPgnud6rqWwWo4xQNZJ7dY/exec"; // 換成你的 URL
+  <!-- 全站共享愛心邏輯（只此一顆） -->
+  <script>
+  // 用你的 GAS Web App URL（此為你提供的 URL）
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbyBSlGxC4NA7FxFar67iECcLuc5liqW63YJ8YbDH7u9qDCPgnud6rqWwWo4xQNZJ7dY/exec";
 
   const $fab = document.getElementById('fab-like');
   const $count = document.getElementById('fab-like-count');
@@ -402,7 +349,8 @@
       const data = await r.json();
       if(typeof data.likes === "number") currentLikes = data.likes;
     }catch(e){
-      currentLikes += add; // 樂觀累計
+      // 網路失敗：先樂觀累計，之後再被 GET 校正
+      currentLikes += add;
     }finally{
       inflight = false;
       renderCount();
@@ -412,11 +360,5 @@
   $fab.addEventListener("click", queueLike, {passive:true});
   fetchLikes();
   </script>
-  <button id="fab-like" class="fab-heart" aria-label="按愛心">
-    <svg viewBox="0 0 24 24" fill="#E57373" aria-hidden="true">
-      <path d="M12 21s-6.716-4.324-9.38-7.02C.8 12.14.5 9.36 2.11 7.7c1.78-1.84 4.82-1.62 6.59.23L12 11l3.3-3.07c1.77-1.85 4.81-2.07 6.59-.23 1.61 1.66 1.31 4.44-.51 6.28C18.72 16.68 12 21 12 21z"/>
-    </svg>
-    <span id="fab-like-count" class="count">0</span>
-  </button>
 </body>
 </html>
