@@ -51,6 +51,24 @@
 
     .hidden{display:none!important}
     .error{color:#b00020; background:#fff; border-left:4px solid #b00020; padding:12px 14px; border-radius:8px}
+  
+    /* 心形按鈕（右上角） */
+    .heart {
+      position:absolute; top:10px; right:10px;
+      display:flex; align-items:center; gap:6px;
+      background:rgba(255,255,255,.9);
+      border:1px solid rgba(0,0,0,.06);
+      border-radius:999px; padding:6px 10px;
+      font-size:13px; line-height:1; color:#666;
+      box-shadow:0 6px 14px rgba(0,0,0,.08);
+      backdrop-filter:saturate(140%) blur(4px);
+      cursor:pointer; user-select:none;
+    }
+    .heart .icon {font-size:16px; transform:translateY(1px)}
+    .heart.active {color:#e11d48; border-color:rgba(225,29,72,.25)}
+
+  
+  
   </style>
 </head>
 <body>
@@ -90,6 +108,10 @@
   const GH_BRANCH = "main";
   const FOLDER    = "WeddingPhoto";
   const THUMBS    = "_thumbs";   // 縮圖子資料夾
+  
+  const LIKE_API   = "https://script.google.com/macros/s/AKfycbyBSlGxC4NA7FxFar67iECcLuc5liqW63YJ8YbDH7u9qDCPgnud6rqWwWo4xQNZJ7dY/exec";
+  const LIKE_METHOD = "POST";   // 若遇到 CORS 問題，改成 "GET"（會使用 ?action=inc 後援）
+  const likeCounts = {}; // id -> number
 
   // 自動判斷使用者/專案頁
   try{
@@ -131,33 +153,67 @@
 
     const box = document.createElement('div'); box.className = 'thumb';
     const img = document.createElement('img');
-    // 前幾張提高優先權，首屏更快
     if(i < 6) img.setAttribute('fetchpriority','high');
     img.loading = 'lazy';
     img.decoding = 'async';
     img.alt = niceCaption(name);
-    img.src = thumb; // 只載縮圖
+    img.src = thumb;
+    box.appendChild(img);
 
-    // 失敗重試（最多 2 次）
-    let tries = 0;
-    img.addEventListener('error', ()=>{
-      if(tries < 2){
-        tries++; setTimeout(()=>{
-          img.src = img.src + (img.src.includes('?')?'&':'?') + 'r=' + Date.now();
-        }, 400*tries);
-      }else{
-        box.style.background = '#eee';
-        box.textContent = '載入失敗';
+    // === 愛心（全站共享） ===
+    const id = stem(name);                   // 以「檔名去副檔名」當唯一 id
+    const key = 'liked:' + id;               // 本機防重複（每裝置僅一次）
+    const liked = localStorage.getItem(key) === '1';
+    const countNow = Number(likeCounts[id] || 0);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'heart' + (liked ? ' active' : '');
+    btn.innerHTML = `<span class="icon">❤</span><span class="txt">${liked ? 'Liked' : 'Like'}</span><span class="count">${countNow}</span>`;
+
+    btn.addEventListener('click', async (ev)=>{
+      ev.stopPropagation(); ev.preventDefault();
+      if (btn.classList.contains('active')) return; // 防多次點擊
+      btn.disabled = true;
+
+      const countEl = btn.querySelector('.count');
+      const current = parseInt(countEl.textContent, 10) || 0;
+      countEl.textContent = String(current + 1);
+      btn.classList.add('active');
+      btn.querySelector('.txt').textContent = 'Liked';
+      localStorage.setItem(key, '1');
+
+      try{
+        if (LIKE_METHOD === 'POST') {
+          await fetch(LIKE_API, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ id })
+          });
+        } else {
+          await fetch(`${LIKE_API}?action=inc&id=${encodeURIComponent(id)}`);
+        }
+      }catch(e){
+        console.warn('送讚失敗', e);
+        // 回滾 UI 狀態
+        countEl.textContent = String(current);
+        btn.classList.remove('active');
+        btn.querySelector('.txt').textContent = 'Save';
+        localStorage.removeItem(key);
+      }finally{
+        btn.disabled = false;
       }
     });
+    box.appendChild(btn);
+    // ========================
 
-    box.appendChild(img);
     a.appendChild(box);
     a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(full); });
 
     fig.appendChild(a);
     return fig;
   }
+
 
   // Lightbox
   const lb = document.getElementById('lightbox');
@@ -227,6 +283,14 @@
         listFolder(FOLDER),
         listFolder(`${FOLDER}/${THUMBS}`).catch(()=>[]),
       ]);
+
+        // 讀所有讚數（物件：{ id: likes, ... }）
+      try {
+        const res = await fetch(LIKE_API);
+        Object.assign(likeCounts, await res.json());
+      } catch (e) {
+        console.warn('讀讚數失敗（先以 0 顯示）', e);
+      }
 
       // 1) 縮圖對映（用「去副檔名」比對，處理 .jpg -> .webp 的情況）
       const thumbMap = new Map(
