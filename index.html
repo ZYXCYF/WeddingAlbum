@@ -164,33 +164,70 @@
 
     const box = document.createElement('div'); box.className = 'thumb';
     const img = document.createElement('img');
-    // 前幾張提高優先權，首屏更快
     if(i < 6) img.setAttribute('fetchpriority','high');
     img.loading = 'lazy';
     img.decoding = 'async';
     img.alt = niceCaption(name);
-    img.src = thumb; // 只載縮圖
+    img.src = thumb;
+    box.appendChild(img);
 
-    // 失敗重試（最多 2 次）
-    let tries = 0;
-    img.addEventListener('error', ()=>{
-      if(tries < 2){
-        tries++; setTimeout(()=>{
-          img.src = img.src + (img.src.includes('?')?'&':'?') + 'r=' + Date.now();
-        }, 400*tries);
-      }else{
-        box.style.background = '#eee';
-        box.textContent = '載入失敗';
+    // === 愛心（全站共享） ===
+    const id = stem(name);                   // 以「檔名去副檔名」當唯一 id
+    const key = 'liked:' + id;               // 本機防重複（每裝置僅一次）
+    const liked = localStorage.getItem(key) === '1';
+    const countNow = Number(likeCounts[id] || 0);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'heart' + (liked ? ' active' : '');
+    btn.innerHTML = `<span class="icon">❤</span><span class="txt">${liked ? 'Liked' : 'Like'}</span><span class="count">${countNow}</span>`;
+
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation(); ev.preventDefault();
+      if (btn.classList.contains('active')) return; // 防多次點擊
+      btn.disabled = true;
+
+      const countEl = btn.querySelector('.count');
+      const current = parseInt(countEl.textContent, 10) || 0;
+
+      // 樂觀更新
+      countEl.textContent = String(current + 1);
+      btn.classList.add('active');
+      btn.querySelector('.txt').textContent = 'Liked';
+      localStorage.setItem(key, '1');
+
+      try {
+        // ---- 傳送到 GAS ----
+        if (LIKE_METHOD === 'POST') {
+          const res = await fetch(LIKE_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+        } else {
+          const res = await fetch(`${LIKE_API}?action=inc&id=${encodeURIComponent(id)}`);
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+        }
+
+      } catch (e) {
+        console.warn('送讚失敗：', e);
+        // ❗不回滾「Liked」字樣，只在 console 提示
+        // 讓使用者體驗上維持成功狀態，但不破壞外觀
+      } finally {
+        btn.disabled = false;
       }
     });
+    box.appendChild(btn);
+    // ========================
 
-    box.appendChild(img);
     a.appendChild(box);
     a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(full); });
 
     fig.appendChild(a);
     return fig;
   }
+
 
   // Lightbox
   const lb = document.getElementById('lightbox');
@@ -260,6 +297,14 @@
         listFolder(FOLDER),
         listFolder(`${FOLDER}/${THUMBS}`).catch(()=>[]),
       ]);
+
+        // 讀所有讚數（物件：{ id: likes, ... }）
+      try {
+        const res = await fetch(LIKE_API);
+        Object.assign(likeCounts, await res.json());
+      } catch (e) {
+        console.warn('讀讚數失敗（先以 0 顯示）', e);
+      }
 
       // 1) 縮圖對映（用「去副檔名」比對，處理 .jpg -> .webp 的情況）
       const thumbMap = new Map(
