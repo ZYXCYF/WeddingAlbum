@@ -73,7 +73,7 @@
     }
     .fab-heart:hover{ transform: translateY(-2px) scale(1.02); background: rgba(255,255,255,.7); }
     .fab-heart:active{ transform: scale(.98); }
-    .fab-heart svg{ width: 28px; height: auto; aspect-ratio: 1 / 1; opacity:.9; }
+    .fab-heart svg{ width: 28px; height: 40px; opacity:.9; }
     .fab-heart .count{
       position: absolute; left: 50%; transform: translateX(-50%);
       bottom: -18px; font-size: 12px; line-height: 1;
@@ -86,6 +86,26 @@
     }
     @media (max-width:420px){
       .fab-heart{ right: 20px; bottom: 30px; width: 60px; height: 60px; }
+    }
+    /* --- 點擊噴發的小愛心 --- */
+    .heart-pop {
+      position: fixed;
+      left: 0; top: 0;
+      width: 10px; height: 12px;
+      pointer-events: none;
+      z-index: 30;
+      transform: translate(-50%, -50%);
+      will-change: transform, opacity;
+      animation: heart-fly 900ms ease-out forwards;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.18));
+    }
+    .heart-pop svg { width: 100%; height: auto; display:block; }
+
+    /* 動畫：向上飄 + 淡出 */
+    @keyframes heart-fly {
+      0%   { transform: translate(var(--x,0px), var(--y,0px)) scale(.8) rotate(var(--rot,0deg)); opacity: .95; }
+      70%  { opacity: .95; }
+      100% { transform: translate(calc(var(--x, 0px) * 1.2), calc(var(--y, -70px) - 40px)) scale(1.15) rotate(var(--rot,0deg)); opacity: 0; }
     }
   </style>
 </head>
@@ -366,8 +386,52 @@
     }
   }
 
-  $fab.addEventListener("click", queueLike, {passive:true});
+  $fab.addEventListener("click", (e) => {
+    queueLike();
+    burstFromButton($fab, 9); // 想多一點就改數字，例如 10 顆
+  }, {passive:true});
   fetchLikes(); // 一載入就讀目前總數
   </script>
+  <script>
+  /* 產生 n 顆小愛心，從 (x,y) 噴出 */
+  function burstHeartsAt(x, y, n = 8){
+    for(let i=0;i<n;i++){
+      const el = document.createElement('span');
+      el.className = 'heart-pop';
+      // 使用和主按鈕一致的愛心 SVG
+      el.innerHTML = '<svg viewBox="0 0 24 24" fill="#E57373" aria-hidden="true"><path d="M12 21s-6.716-4.324-9.38-7.02C.8 12.14.5 9.36 2.11 7.7c1.78-1.84 4.82-1.62 6.59.23L12 11l3.3-3.07c1.77-1.85 4.81-2.07 6.59-.23 1.61 1.66 1.31 4.44-.51 6.28C18.72 16.68 12 21 12 21z"/></svg>';
+
+      // 隨機散射方向與旋轉
+      const spread = 70;                 // 左右散射距離（px）
+      const dx = (Math.random()*2-1)*spread;
+      const dy = - (10 + Math.random()*70); // 向上
+      const rot = (Math.random()*60-30);    // -30~30 度
+      const dur = 750 + Math.random()*450;  // 0.75~1.2s
+
+      // 起點座標（視窗座標）
+      el.style.left = x + 'px';
+      el.style.top  = y + 'px';
+
+      // 傳遞隨機量到 CSS 變數
+      el.style.setProperty('--x', dx + 'px');
+      el.style.setProperty('--y', dy + 'px');
+      el.style.setProperty('--rot', rot + 'deg');
+      el.style.animationDuration = dur + 'ms';
+
+      document.body.appendChild(el);
+      // 動畫結束後移除
+      setTimeout(()=> el.remove(), dur + 60);
+    }
+  }
+
+  /* 以按鈕中心為起點噴發 */
+  function burstFromButton(btn, n = 8){
+    const r = btn.getBoundingClientRect();
+    const x = r.left + r.width/2;
+    const y = r.top  + r.height/2;
+    burstHeartsAt(x, y, n);
+  }
+  </script>
+
 </body>
 </html>
