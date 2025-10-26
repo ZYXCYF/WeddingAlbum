@@ -6,6 +6,10 @@
   <title>鄭宇翔與陳郁芳的婚紗相簿｜Wedding Album</title>
   <meta name="robots" content="noindex" />
   <style>
+    :root{
+      --fab-gap-right: 28px; /* 右側間距 */
+      --fab-gap-bottom: 32px;/* 下方間距 */
+    }
     :root{ --pink1:#F8E6EE; --pink2:#FFF9FB; --gray:#A4A2A0; --ink:#2b2b2b; }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -54,7 +58,7 @@
 
     /* === 右下角漂浮愛心 === */
     .fab-heart{
-      position: fixed; right: 16px; bottom: 16px;
+      position: fixed; right:var(--fab-gap-right); bottom: var(--fab-gap-bottom);
       width: 66px; height: 66px;
       border-radius: 50%;
       backdrop-filter: blur(6px) saturate(140%);
@@ -69,7 +73,7 @@
     }
     .fab-heart:hover{ transform: translateY(-2px) scale(1.02); background: rgba(255,255,255,.7); }
     .fab-heart:active{ transform: scale(.98); }
-    .fab-heart svg{ width: 28px; height: 28px; opacity:.9; }
+    .fab-heart svg{ width: 28px; height: auto; aspect-ratio: 1 / 1; opacity:.9; }
     .fab-heart .count{
       position: absolute; left: 50%; transform: translateX(-50%);
       bottom: -18px; font-size: 12px; line-height: 1;
@@ -81,7 +85,7 @@
       pointer-events: none;
     }
     @media (max-width:420px){
-      .fab-heart{ right: 12px; bottom: 12px; width: 60px; height: 60px; }
+      .fab-heart{ right: 20px; bottom: 30px; width: 60px; height: 60px; }
     }
   </style>
 </head>
@@ -103,7 +107,7 @@
     <small class="muted">Captured with Love in Taiwan</small>
   </footer>
 
-  <!-- 漂浮愛心（先放在 DOM，等等 JS 才綁事件） -->
+  <!-- 漂浮愛心 -->
   <button id="fab-like" class="fab-heart" aria-label="按愛心">
     <svg viewBox="0 0 24 24" fill="#E57373" aria-hidden="true">
       <path d="M12 21s-6.716-4.324-9.38-7.02C.8 12.14.5 9.36 2.11 7.7c1.78-1.84 4.82-1.62 6.59.23L12 11l3.3-3.07c1.77-1.85 4.81-2.07 6.59-.23 1.61 1.66 1.31 4.44-.51 6.28C18.72 16.68 12 21 12 21z"/>
@@ -111,7 +115,7 @@
     <span id="fab-like-count" class="count">0</span>
   </button>
 
-  <!-- 相簿主程式（不含任何按讚邏輯） -->
+  <!-- Lightbox -->
   <dialog id="lightbox" aria-label="照片檢視">
     <div class="lb-wrap">
       <img id="lb-img" class="lb-img" alt="" />
@@ -130,9 +134,8 @@
   const GH_REPO   = "WeddingAlbum";
   const GH_BRANCH = "main";
   const FOLDER    = "WeddingPhoto";
-  const THUMBS    = "_thumbs";   // 縮圖子資料夾
+  const THUMBS    = "_thumbs";
 
-  // 自動判斷使用者/專案頁
   try{
     const host = location.hostname;
     const parts = location.pathname.replace(/^\//,'').split('/');
@@ -157,31 +160,21 @@
   const ALLOWED = new Set(['.jpg','.jpeg','.png','.webp','.gif','.avif']);
   const photos = [];
 
-  function fileExt(name){
-    const i = name.lastIndexOf('.');
-    return i>=0 ? name.slice(i).toLowerCase() : '';
-  }
+  function fileExt(name){ const i = name.lastIndexOf('.'); return i>=0 ? name.slice(i).toLowerCase() : ''; }
   function stem(name){ return name.replace(/\.[^.]+$/,'').toLowerCase(); }
-  function niceCaption(name){
-    return name.replace(/^(.+)(\.[^.]+)$/,'$1').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();
-  }
+  function niceCaption(name){ return name.replace(/^(.+)(\.[^.]+)$/,'$1').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim(); }
 
   function makeCard({thumb, full, name}, i){
     const fig = document.createElement('figure');
     const a = document.createElement('a'); a.href = full; a.setAttribute('data-name', name);
-
     const box = document.createElement('div'); box.className = 'thumb';
     const img = document.createElement('img');
     if(i < 6) img.setAttribute('fetchpriority','high');
-    img.loading = 'lazy';
-    img.decoding = 'async';
-    img.alt = niceCaption(name);
-    img.src = thumb;
+    img.loading = 'lazy'; img.decoding = 'async';
+    img.alt = niceCaption(name); img.src = thumb;
     box.appendChild(img);
-
     a.appendChild(box);
     a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(full); });
-
     fig.appendChild(a);
     return fig;
   }
@@ -200,15 +193,8 @@
     updateLB();
     if(!lb.open) lb.showModal();
   }
-  function updateLB(){
-    const p = photos[idx];
-    lbImg.src = p.url; lbImg.alt = p.name;
-  }
-  function step(d){
-    if(!photos.length) return;
-    idx = (idx + d + photos.length) % photos.length;
-    updateLB();
-  }
+  function updateLB(){ const p = photos[idx]; lbImg.src = p.url; lbImg.alt = p.name; }
+  function step(d){ if(!photos.length) return; idx = (idx + d + photos.length) % photos.length; updateLB(); }
   lbPrev.addEventListener('click', ()=> step(-1));
   lbNext.addEventListener('click', ()=> step(+1));
   lbClose.addEventListener('click', ()=> lb.close());
@@ -220,7 +206,6 @@
     else if(e.key==='Escape') lb.close();
   });
 
-  // 讀取 GitHub 目錄清單
   async function listFolder(path){
     const url = `https://api.github.com/repos/${user}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`;
     const r = await fetch(url, {headers:{'Accept':'application/vnd.github+json'}});
@@ -233,13 +218,11 @@
     return r.json();
   }
 
-  // 分批渲染
   function batchedRender(items, renderOne, batchSize = 15){
     let i = 0;
     const schedule = (typeof window.requestIdleCallback === 'function')
       ? (cb) => window.requestIdleCallback(cb)
       : (cb) => setTimeout(cb, 0);
-
     function more(){
       const end = Math.min(i + batchSize, items.length);
       for (; i < end; i++) renderOne(items[i], i);
@@ -267,7 +250,6 @@
         return;
       }
       notice.classList.add('hidden');
-
       imgs.sort((a,b)=> a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}));
 
       batchedRender(imgs, (f, i)=>{
@@ -278,13 +260,11 @@
       });
 
       grid.addEventListener('mouseover', (e)=>{
-        const a = e.target.closest('a');
-        if(!a) return;
+        const a = e.target.closest('a'); if(!a) return;
         const href = a.getAttribute('href');
         const link = document.createElement('link');
         link.rel='prefetch'; link.href=href; document.head.appendChild(link);
       });
-
     }catch(err){
       console.error(err);
       notice.classList.add('hidden');
@@ -295,9 +275,8 @@
   load();
   </script>
 
-  <!-- 全站共享愛心邏輯（只此一顆） -->
+  <!-- 全站共享愛心（自動 JSON→失敗改 JSONP；POST 失敗改表單POST） -->
   <script>
-  // 用你的 GAS Web App URL（此為你提供的 URL）
   const GAS_URL = "https://script.google.com/macros/s/AKfycbyRY_M34B0z0VpD9i-hTR_4wfsM1J6-aQUAFMbWbxlidxpeWNy6CDKj90Y6WrDYcLnf/exec";
   const $fab = document.getElementById('fab-like');
   const $count = document.getElementById('fab-like-count');
@@ -307,26 +286,50 @@
   let flushTimer = null;
   let inflight = false;
 
+  // 初始顯示成省略符（避免看起來像 0）
+  $count.textContent = '…';
+
   function formatCount(n){
     if(n >= 1e9) return (n/1e9).toFixed(1).replace(/\.0$/,'')+'B';
     if(n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'')+'M';
     if(n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
     return String(n);
   }
+  function renderCount(){ $count.textContent = formatCount(currentLikes + pendingAdds); }
 
-  function renderCount(){
-    $count.textContent = formatCount(currentLikes + pendingAdds);
+  // --- JSONP（免 CORS） ---
+  function jsonp(url){
+    const cbName = 'cb_' + Math.random().toString(36).slice(2);
+    return new Promise((resolve) => {
+      window[cbName] = (data) => {
+        try { resolve(data); }
+        finally { delete window[cbName]; s.remove(); }
+      };
+      const s = document.createElement('script');
+      // callback 參數交給 GAS 的 doGet 處理：回傳 callback({...})
+      s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName + '&_=' + Date.now();
+      document.head.appendChild(s);
+    });
   }
 
+  // --- 表單 POST（簡單請求，無預檢；避免 CORS 預檢問題） ---
+  function postForm(url, dataObj){
+    const params = new URLSearchParams(dataObj);
+    return fetch(url, { method: 'POST', body: params }); // 不手動設 Content-Type，瀏覽器會自動帶 x-www-form-urlencoded
+  }
+
+  // ✅ GET：直接用 JSONP（最穩）
   async function fetchLikes(){
     try{
-      const r = await fetch(GAS_URL + "?t=" + Date.now());
-      const data = await r.json();
-      if(typeof data.likes === "number"){
-        currentLikes = data.likes;
-        renderCount();
-      }
-    }catch(e){ console.warn("Fetch failed", e); }
+      const data = await jsonp(GAS_URL);
+      const val = Number(data && data.likes);
+      currentLikes = Number.isFinite(val) ? val : 0;
+    }catch(e){
+      console.warn("讀取讚數失敗", e);
+      currentLikes = 0;
+    }finally{
+      renderCount();
+    }
   }
 
   function queueLike(){
@@ -335,29 +338,36 @@
     if(!flushTimer) flushTimer = setTimeout(flushLikes, 300);
   }
 
+  // ✅ POST：先試 JSON；失敗就退回表單 POST（免預檢）
   async function flushLikes(){
     flushTimer = null;
     if(pendingAdds <= 0 || inflight) return;
     const add = pendingAdds; pendingAdds = 0; inflight = true;
     try{
+      // 嘗試 JSON
       const r = await fetch(GAS_URL, {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body: JSON.stringify({inc:add})
       });
-      const data = await r.json();
-      if(typeof data.likes === "number") currentLikes = data.likes;
-    }catch(e){
-      // 網路失敗：先樂觀累計，之後再被 GET 校正
-      currentLikes += add;
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json().catch(()=> ({}));
+      if(typeof data.likes === "number"){ currentLikes = data.likes; }
+    }catch(_){
+      // 退回表單 POST（無需讀回應；下次 fetchLikes 會校正）
+      try{ await postForm(GAS_URL, {inc: add}); }
+      catch(e){ console.warn("POST 失敗，先維持前端值", e); currentLikes += add; }
     }finally{
       inflight = false;
       renderCount();
+
+      // 為了把「樂觀值」盡快校正成真實值，1 秒後再拉一次
+      setTimeout(fetchLikes, 1000);
     }
   }
 
   $fab.addEventListener("click", queueLike, {passive:true});
-  fetchLikes();
+  fetchLikes(); // 一載入就讀目前總數
   </script>
 </body>
 </html>
