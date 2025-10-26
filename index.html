@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>我們的婚紗相簿｜Wedding Album</title>
+  <title>鄭宇翔與陳郁芳的婚紗相簿｜Wedding Album</title>
   <meta name="robots" content="noindex" />
   <style>
     :root{
@@ -27,12 +27,13 @@
     .sub{margin:.35rem 0 0; color:#666}
 
     /* 控制網格：漂亮又簡單 */
-    .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; padding:24px 20px 64px}
-    figure{margin:0; border-radius:16px; overflow:hidden; background:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.8); box-shadow:0 10px 24px rgba(0,0,0,.06)}
+    .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px; padding:24px 20px 64px}
+    figure{margin:0; border-radius:16px; overflow:hidden; background:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.85); box-shadow:0 12px 30px rgba(0,0,0,.08)}
     figure a{display:block; text-decoration:none; color:inherit}
-    img{display:block; width:100%; height:100%; object-fit:cover; background:#f2f2f2}
-    .ph{aspect-ratio: 4/3; display:grid; place-items:center; color:#999; font-size:.9rem}
-    figcaption{padding:10px 12px; font-size:.92rem; color:#555}
+    img{display:block; width:100%; height:100%; object-fit:cover; background:#f2f2f2; image-rendering:auto}
+    .thumb{aspect-ratio:1/1; position:relative; overflow:hidden; background:#f2f2f2}
+.thumb img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+    figcaption{padding:10px 12px; font-size:.92rem; color:#555; display:none}
 
     /* 浮動 lightbox */
     dialog#lightbox{border:none; padding:0; border-radius:18px; max-width:min(92vw,1200px); width:fit-content; overflow:clip; box-shadow:0 30px 80px rgba(0,0,0,.35)}
@@ -55,7 +56,7 @@
 <body>
   <header>
     <div class="container">
-      <h1>我們的婚紗相簿</h1>
+      <h1>鄭宇翔與陳郁芳的婚紗相簿</h1>
       <p class="sub">相簿會自動讀取 <code>WeddingPhoto/</code> 內的圖片並美觀排列。點擊可全螢幕瀏覽。</p>
     </div>
   </header>
@@ -67,7 +68,7 @@
   </main>
 
   <footer>
-    <small class="muted">Made with ❤︎ <span class="brand">#F8E6EE → #FFF9FB · #A4A2A0</span></small>
+    <small class="muted">Made with ❤︎</small>
   </footer>
 
   <dialog id="lightbox" aria-label="照片檢視">
@@ -134,22 +135,24 @@
   function makeCard({url,name}){
     const fig = document.createElement('figure');
     const a = document.createElement('a'); a.href = url; a.setAttribute('data-name', name);
-    const ph = document.createElement('div'); ph.className='ph'; ph.textContent='載入中…';
-    const img = document.createElement('img'); img.loading='lazy'; img.alt = niceCaption(name);
-    img.addEventListener('load',()=>{ ph.replaceWith(img); });
-    img.addEventListener('error',()=>{ ph.textContent='載入失敗'; });
-    img.src = url;
-    a.appendChild(ph);
+
+    const thumb = document.createElement('div'); thumb.className='thumb';
+    const img = document.createElement('img');
+    img.loading='lazy';
+    img.alt = niceCaption(name);
+    img.src = url; // 直接載入，避免 placeholder 不被替換
+    thumb.appendChild(img);
+
+    a.appendChild(thumb);
     a.addEventListener('click', ev => {
       ev.preventDefault();
       openLightbox(url);
     });
 
-    const cap = document.createElement('figcaption');
-    cap.textContent = niceCaption(name);
+    // 如要顯示檔名，移除下行的註解
+    // const cap = document.createElement('figcaption'); cap.textContent = niceCaption(name); fig.appendChild(cap);
 
     fig.appendChild(a);
-    fig.appendChild(cap);
     return fig;
   }
 
