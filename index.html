@@ -51,6 +51,39 @@
 
     .hidden{display:none!important}
     .error{color:#b00020; background:#fff; border-left:4px solid #b00020; padding:12px 14px; border-radius:8px}
+    
+    /* === Floating Heart Button === */
+    .fab-heart{
+      position: fixed; right: 16px; bottom: 16px;
+      width: 66px; height: 66px;
+      border-radius: 50%;
+      backdrop-filter: blur(6px) saturate(140%);
+      background: rgba(255,255,255,.55);
+      border: 1px solid rgba(255,255,255,.9);
+      box-shadow: 0 10px 28px rgba(0,0,0,.18);
+      display: grid; place-items:center;
+      cursor: pointer;
+      z-index: 20;
+      user-select: none;
+      transition: transform .15s ease, background .2s ease;
+    }
+    .fab-heart:hover{ transform: translateY(-2px) scale(1.02); background: rgba(255,255,255,.7); }
+    .fab-heart:active{ transform: scale(.98); }
+    .fab-heart svg{ width: 28px; height: 28px; opacity:.9; }
+    .fab-heart .count{
+      position: absolute; left: 50%; transform: translateX(-50%);
+      bottom: -18px; font-size: 12px; line-height: 1;
+      padding: 2px 6px; border-radius: 999px;
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(255,255,255,.9);
+      color: #555;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    @media (max-width:420px){
+      .fab-heart{ right: 12px; bottom: 12px; width: 60px; height: 60px; }
+    }
+  
   </style>
 </head>
 <body>
@@ -271,6 +304,74 @@
     }
   }
   load();
+
+
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbyBSlGxC4NA7FxFar67iECcLuc5liqW63YJ8YbDH7u9qDCPgnud6rqWwWo4xQNZJ7dY/exec"; // 換成你的 URL
+
+  const $fab = document.getElementById('fab-like');
+  const $count = document.getElementById('fab-like-count');
+
+  let currentLikes = 0;
+  let pendingAdds = 0;
+  let flushTimer = null;
+  let inflight = false;
+
+  function formatCount(n){
+    if(n >= 1e9) return (n/1e9).toFixed(1).replace(/\.0$/,'')+'B';
+    if(n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'')+'M';
+    if(n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+    return String(n);
+  }
+
+  function renderCount(){
+    $count.textContent = formatCount(currentLikes + pendingAdds);
+  }
+
+  async function fetchLikes(){
+    try{
+      const r = await fetch(GAS_URL + "?t=" + Date.now());
+      const data = await r.json();
+      if(typeof data.likes === "number"){
+        currentLikes = data.likes;
+        renderCount();
+      }
+    }catch(e){ console.warn("Fetch failed", e); }
+  }
+
+  function queueLike(){
+    pendingAdds++;
+    renderCount();
+    if(!flushTimer) flushTimer = setTimeout(flushLikes, 300);
+  }
+
+  async function flushLikes(){
+    flushTimer = null;
+    if(pendingAdds <= 0 || inflight) return;
+    const add = pendingAdds; pendingAdds = 0; inflight = true;
+    try{
+      const r = await fetch(GAS_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({inc:add})
+      });
+      const data = await r.json();
+      if(typeof data.likes === "number") currentLikes = data.likes;
+    }catch(e){
+      currentLikes += add; // 樂觀累計
+    }finally{
+      inflight = false;
+      renderCount();
+    }
+  }
+
+  $fab.addEventListener("click", queueLike, {passive:true});
+  fetchLikes();
   </script>
+  <button id="fab-like" class="fab-heart" aria-label="按愛心">
+    <svg viewBox="0 0 24 24" fill="#E57373" aria-hidden="true">
+      <path d="M12 21s-6.716-4.324-9.38-7.02C.8 12.14.5 9.36 2.11 7.7c1.78-1.84 4.82-1.62 6.59.23L12 11l3.3-3.07c1.77-1.85 4.81-2.07 6.59-.23 1.61 1.66 1.31 4.44-.51 6.28C18.72 16.68 12 21 12 21z"/>
+    </svg>
+    <span id="fab-like-count" class="count">0</span>
+  </button>
 </body>
 </html>
