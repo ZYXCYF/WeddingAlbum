@@ -171,36 +171,39 @@
     btn.className = 'heart' + (liked ? ' active' : '');
     btn.innerHTML = `<span class="icon">❤</span><span class="txt">${liked ? 'Liked' : 'Like'}</span><span class="count">${countNow}</span>`;
 
-    btn.addEventListener('click', async (ev)=>{
+    btn.addEventListener('click', async (ev) => {
       ev.stopPropagation(); ev.preventDefault();
       if (btn.classList.contains('active')) return; // 防多次點擊
       btn.disabled = true;
 
       const countEl = btn.querySelector('.count');
       const current = parseInt(countEl.textContent, 10) || 0;
+
+      // 樂觀更新
       countEl.textContent = String(current + 1);
       btn.classList.add('active');
       btn.querySelector('.txt').textContent = 'Liked';
       localStorage.setItem(key, '1');
 
-      try{
+      try {
+        // ---- 傳送到 GAS ----
         if (LIKE_METHOD === 'POST') {
-          await fetch(LIKE_API, {
+          const res = await fetch(LIKE_API, {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ id })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
           });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
         } else {
-          await fetch(`${LIKE_API}?action=inc&id=${encodeURIComponent(id)}`);
+          const res = await fetch(`${LIKE_API}?action=inc&id=${encodeURIComponent(id)}`);
+          if (!res.ok) throw new Error('HTTP ' + res.status);
         }
-      }catch(e){
-        console.warn('送讚失敗', e);
-        // 回滾 UI 狀態
-        countEl.textContent = String(current);
-        btn.classList.remove('active');
-        btn.querySelector('.txt').textContent = 'Save';
-        localStorage.removeItem(key);
-      }finally{
+
+      } catch (e) {
+        console.warn('送讚失敗：', e);
+        // ❗不回滾「Liked」字樣，只在 console 提示
+        // 讓使用者體驗上維持成功狀態，但不破壞外觀
+      } finally {
         btn.disabled = false;
       }
     });
