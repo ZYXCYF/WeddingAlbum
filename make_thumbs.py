@@ -1,5 +1,5 @@
 import os, pathlib
-from PIL import Image
+from PIL import Image, ImageOps
 
 ROOT = pathlib.Path(__file__).parent
 SRC  = ROOT / "WeddingPhoto"
@@ -17,14 +17,27 @@ for p in SRC.iterdir():
         out = DST / p.name  # 與原圖同名（副檔名保留）
         try:
             with Image.open(p) as im:
+                # 修正 EXIF 方向
+                im = ImageOps.exif_transpose(im)
+
+                # 若為動畫（多格），取第一格做縮圖
+                is_animated = getattr(im, "is_animated", False) or getattr(im, "n_frames", 1) > 1
+                if is_animated:
+                    try:
+                        im.seek(0)
+                    except Exception:
+                        pass
+
+                # 若有 alpha 或調色盤，轉為 RGB（JPG 不支援透明）
                 im = im.convert("RGB") if im.mode in ("RGBA","P","LA") else im
                 w, h = im.size
                 if w > MAX_W:
                     nh = int(h * (MAX_W / w))
                     im = im.resize((MAX_W, nh), Image.LANCZOS)
-                # 優先輸出 webp（瀏覽器支援佳、體積小）
-                out = out.with_suffix(".webp")
-                im.save(out, "WEBP", quality=QUALITY, method=6)
+
+                # 優先輸出 JPG（瀏覽器支援佳、體積小）
+                out = out.with_suffix(".jpg")
+                im.save(out, "JPEG", quality=QUALITY, optimize=True, progressive=True)
                 count += 1
                 print("OK", out.name)
         except Exception as e:
