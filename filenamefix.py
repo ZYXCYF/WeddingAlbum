@@ -3,6 +3,6 @@ import os
 
 directory = r".\WeddingPhoto"
 for filename in os.listdir(directory):
-    if "2026" in filename:
-        new_filename = filename.replace("2026", "ZYXCYF")
+    if "-" in filename:
+        new_filename = filename.replace("-", "_")
         os.rename(os.path.join(directory, filename), os.path.join(directory, new_filename))
