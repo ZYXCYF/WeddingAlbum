@@ -258,31 +258,56 @@
 
   async function load(){
     try{
-      const [files, thumbs] = await Promise.all([
-        listFolder(FOLDER),
-        listFolder(`${FOLDER}/${THUMBS}`).catch(()=>[]),
-      ]);
-
-      const thumbMap = new Map(
-        (Array.isArray(thumbs)?thumbs:[])
-          .filter(it => it.type === 'file')
-          .map(it => [ stem(it.name), it.download_url ])
-      );
-
-      const imgs = files.filter(it => it.type==='file' && ALLOWED.has(fileExt(it.name)));
-      if(!imgs.length){
-        notice.textContent = `資料夾沒有圖片；請放 .jpg/.png/.webp 等檔案到 ${FOLDER}/`;
-        return;
+      let imgs = [];
+      let isLocalManifest = false;
+      
+      // ✅ 優先嘗試載入靜態 manifest.json（更快、更穩定）
+      try{
+        const r = await fetch('./manifest.json');
+        if(r.ok){
+          const manifest = await r.json();
+          if(manifest.photos && Array.isArray(manifest.photos)){
+            isLocalManifest = true;
+            // 直接使用 manifest 中的 URL
+            batchedRender(manifest.photos, (item, i)=>{
+              photos.push({ url: item.full, name: item.name });
+              grid.appendChild(makeCard({ thumb: item.thumb, full: item.full, name: item.name }, i));
+            });
+            notice.classList.add('hidden');
+          }
+        }
+      }catch(e){ 
+        console.log('manifest.json 不可用，改用 GitHub API'); 
       }
-      notice.classList.add('hidden');
-      imgs.sort((a,b)=> a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}));
+      
+      // 如果 manifest 失敗，降級到 GitHub API
+      if(!isLocalManifest){
+        const [files, thumbs] = await Promise.all([
+          listFolder(FOLDER),
+          listFolder(`${FOLDER}/${THUMBS}`).catch(()=>[]),
+        ]);
 
-      batchedRender(imgs, (f, i)=>{
-        const full  = f.download_url;
-        const th    = thumbMap.get(stem(f.name)) || full;
-        photos.push({ url: full, name: f.name });
-        grid.appendChild(makeCard({ thumb: th, full, name: f.name }, i));
-      });
+        const thumbMap = new Map(
+          (Array.isArray(thumbs)?thumbs:[])
+            .filter(it => it.type === 'file')
+            .map(it => [ stem(it.name), it.download_url ])
+        );
+
+        imgs = files.filter(it => it.type==='file' && ALLOWED.has(fileExt(it.name)));
+        if(!imgs.length){
+          notice.textContent = `資料夾沒有圖片；請放 .jpg/.png/.webp 等檔案到 ${FOLDER}/`;
+          return;
+        }
+        notice.classList.add('hidden');
+        imgs.sort((a,b)=> a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}));
+
+        batchedRender(imgs, (f, i)=>{
+          const full  = f.download_url;
+          const th    = thumbMap.get(stem(f.name)) || full;
+          photos.push({ url: full, name: f.name });
+          grid.appendChild(makeCard({ thumb: th, full, name: f.name }, i));
+        });
+      }
 
       grid.addEventListener('mouseover', (e)=>{
         const a = e.target.closest('a'); if(!a) return;
