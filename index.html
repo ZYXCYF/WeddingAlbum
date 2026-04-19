@@ -211,9 +211,56 @@
     if(i < 6) img.setAttribute('fetchpriority','high');
     img.loading = 'lazy'; img.decoding = 'async';
     img.alt = niceCaption(name); img.src = thumb;
+    
+    // ✅ 追蹤加載狀態
+    let imgLoaded = false;
+    let retryCount = 0;
+    const maxRetries = 8;
+    let isRetrying = false; // 標記是否正在重試
+    
+    img.onload = () => {
+      imgLoaded = true;
+      box.style.background = 'transparent';
+      console.log(`縮圖加載成功 (${name})`);
+    };
+    
+    img.onerror = () => {
+      imgLoaded = false;
+      if(retryCount < maxRetries){
+        retryCount++;
+        const delayMs = 1000 + (retryCount * 500);
+        console.log(`縮圖重試 ${retryCount}/${maxRetries} (${name})`);
+        setTimeout(() => { 
+          img.src = thumb + '?t=' + Date.now(); 
+        }, delayMs);
+      }else{
+        // 最終失敗：顯示淡灰色佔位符
+        box.style.background = 'linear-gradient(135deg, #ddd 0%, #eee 100%)';
+        img.style.display = 'none';
+      }
+    };
+    
     box.appendChild(img);
     a.appendChild(box);
-    a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(thumb, full); });
+    
+    // ✅ 點擊邏輯：未加載時重試，加載成功後點擊打開 lightbox
+    a.addEventListener('click', ev => { 
+      ev.preventDefault();
+      
+      if(imgLoaded){
+        // 已加載成功，打開 lightbox
+        openLightbox(thumb, full);
+      }else if(!isRetrying){
+        // 未加載成功，嘗試重新加載（僅一次）
+        isRetrying = true;
+        console.log(`用戶點擊失敗卡片 (${name})，嘗試重新加載...`);
+        retryCount = 0;  // 重置重試計數
+        img.style.display = 'block';
+        box.style.background = '#f2f2f2';
+        img.src = thumb + '?t=' + Date.now();
+      }
+    });
+    
     fig.appendChild(a);
     return fig;
   }
