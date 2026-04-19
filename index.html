@@ -31,6 +31,9 @@
     .container{max-width:1100px; margin:0 auto; padding:20px}
     h1{margin:0; font-weight:700; letter-spacing:.02em}
     .sub{margin:.35rem 0 0; color:#666}
+    /* === 導航連結樣式 === */
+    .sub a{color:#9B7878; text-decoration:none; cursor:pointer; transition:opacity .2s ease;}
+    .sub a:hover{opacity:.7; text-decoration:underline;}
 
     /* 網格 */
     .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px; padding:24px 20px 64px}
@@ -122,8 +125,8 @@
   <header>
     <div class="container">
       <h1>鄭宇翔與陳郁芳的婚紗相簿</h1>
-      <p class="sub">ZYX & CYF Wedding Album – FerriWedding, Kaohsiung, Taiwan (2025.10.10)</p>
-      <p class="sub">ZYX & CYF Marriage Registration, Taichung, Taiwan (2026.03.23)</p>
+      <p class="sub"><a href="#" onclick="jumpToPhoto('001JUN00009_1.jpg'); return false;">ZYX & CYF Wedding Album – FerriWedding, Kaohsiung, Taiwan (2025.10.10)</a></p>
+      <p class="sub"><a href="#" onclick="jumpToPhoto('ZYXCYF_03_23 __1.jpg'); return false;">ZYX & CYF Marriage Registration, Taichung, Taiwan (2026.03.23)</a></p>
     </div>
   </header>
 
@@ -279,6 +282,25 @@
     if(idx < 0) idx = 0;
     updateLB();
     if(!lb.open) lb.showModal();
+  }
+  
+  // ✅ 導航函數：根據照片名稱跳轉到該位置
+  function jumpToPhoto(photoName){
+    // 查找對應名稱的卡片
+    const cards = document.querySelectorAll('figure');
+    let targetCard = null;
+    for(const card of cards){
+      const link = card.querySelector('a[data-name]');
+      if(link && link.getAttribute('data-name') === photoName){
+        targetCard = card;
+        break;
+      }
+    }
+    if(targetCard){
+      targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }else{
+      console.log(`未找到照片: ${photoName}`);
+    }
   }
   function updateLB(){ const p = photos[idx]; lbImg.src = p.thumb; lbImg.alt = p.name; }
   function step(d){ if(!photos.length) return; idx = (idx + d + photos.length) % photos.length; updateLB(); }
