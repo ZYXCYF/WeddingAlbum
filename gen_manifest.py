@@ -42,25 +42,23 @@ if PHOTO_DIR.exists():
             if thumb_file.is_file():
                 thumb_map[stem(thumb_file.name)] = thumb_file
     
-    # 只加入允許的圖片格式
+    # 只加入允許的圖片格式且有對應縮圖的照片
     for photo_file in all_files:
         if photo_file.is_file() and photo_file.suffix.lower() in ALLOWED:
             s = stem(photo_file.name)
             rel_path = photo_file.relative_to(ROOT)
             
-            # 優先用縮圖（如果存在），否則用原圖
+            # ✅ 只加入有縮圖的照片
             thumb = thumb_map.get(s)
             if thumb:
                 thumb_rel = thumb.relative_to(ROOT)
                 thumb_url = get_jsdelivr_url(thumb_rel)
-            else:
-                thumb_url = get_jsdelivr_url(rel_path)
-            
-            photos.append({
-                "name": photo_file.name,
-                "thumb": thumb_url,
-                "full": get_jsdelivr_url(rel_path)
-            })
+                photos.append({
+                    "name": photo_file.name,
+                    "thumb": thumb_url,
+                    "full": get_jsdelivr_url(rel_path)
+                })
+            # 否則跳過此照片
 
 # 寫出 manifest.json
 manifest = {
